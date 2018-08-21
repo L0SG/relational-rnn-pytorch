@@ -305,10 +305,7 @@ try:
         val_loss = evaluate(val_data)
         print('-' * 89)
         testlog = '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f}'.format(epoch, (
-                time.time() - epoch_start_time),
-                                                                                                          val_loss,
-                                                                                                          math.exp(
-                                                                                                              val_loss))
+                time.time() - epoch_start_time), val_loss, math.exp(val_loss))
         print(testlog)
         logger_test.write(testlog + '\n')
         logger_test.flush()
