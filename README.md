@@ -53,7 +53,7 @@ Using LSTMCell with for loop (which is more "fair" benchmark for RMC) slows down
 
 Interesting to note here is that the speed is slower in TITAN V than TITAN Xp. The reason might be that the models are relatively small and the model calls small linear operations frequently.
 
-Maybe TITAN Xp (~1900Mhz clock speed vs. TITAN V's 1355Mhz limit) benefits from these kind of workload. Or maybe TITAN V's CUDA kernel launch latency is higher for the ops in the model.
+Maybe TITAN Xp (~1,900Mhz unlocked CUDA clock speed vs. TITAN V's 1,335Mhz limit) benefits from these kind of workload. Or maybe TITAN V's CUDA kernel launch latency is higher for the ops in the model.
 
 I'm not an expert in details of CUDA. Please share your results!  
 
