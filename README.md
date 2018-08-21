@@ -12,7 +12,7 @@ This repo is a port of RMC with additional comments. It features a full-fledged 
 
 It supports any arbitrary word token-based text dataset, including WikiText-2 & WikiText-103.
 
-Both RMC & LSTM models support [adaptive softmax](https://pytorch.org/docs/stable/nn.html?highlight=adaptive%20softmax#torch.nn.AdaptiveLogSoftmaxWithLoss) for much lower memory usage of large vocabulary dataset. RMC supports PyTorch's `DataParallel`, so you can easily experiment with a multi-GPU setup.
+Both RMC & LSTM models support [adaptive softmax](https://pytorch.org/docs/stable/nn.html#adaptivelogsoftmaxwithloss) for much lower memory usage of large vocabulary dataset. RMC supports PyTorch's `DataParallel`, so you can easily experiment with a multi-GPU setup.
 
 benchmark codes are hard-forked from [official PyTorch word-language-model example](https://github.com/pytorch/examples/tree/master/word_language_model)
 
@@ -84,7 +84,7 @@ Applying dropout at the output logit before the softmax (like the LSTM one) help
 # About WikiText-103
 The original RMC paper presents WikiText-103 results with a larger model & batch size (6 Tesla P100, each with 64 batch size, so a total of 384. Ouch).
 
-Using a full softmax easily blows up the VRAM. Using `--adaptivesoftmax` is highly recommended. If using `--adaptivesoftmax`, `--cutoffs` should be properly provided. Please refer to the [original API description](https://pytorch.org/docs/stable/nn.html?highlight=adaptive%20softmax#torch.nn.AdaptiveLogSoftmaxWithLoss)
+Using a full softmax easily blows up the VRAM. Using `--adaptivesoftmax` is highly recommended. If using `--adaptivesoftmax`, `--cutoffs` should be properly provided. Please refer to the [original API description](https://pytorch.org/docs/stable/nn.html#adaptivelogsoftmaxwithloss)
 
 I don't have such hardware and my resource is too limited to do the experiments. Benchmark result, or any other contributions are very welcome!
 
