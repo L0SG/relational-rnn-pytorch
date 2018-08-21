@@ -2,7 +2,7 @@
 
 An implementation of DeepMind's [Relational Recurrent Neural Networks](https://arxiv.org/abs/1806.01822) (Santoro et al. 2018) in PyTorch.
 
-Relational Memory Core (RMC) module is originally from [official Sonnet implementation](https://github.com/deepmind/sonnet/blob/master/sonnet/python/modules/relational_memory.py). However, currently they only provide a unit test code.
+Relational Memory Core (RMC) module is originally from [official Sonnet implementation](https://github.com/deepmind/sonnet/blob/master/sonnet/python/modules/relational_memory.py). However, currently they do not provide a full language modeling benchmark code.
 
 This repo is a port of RMC with additional comments. It features a full-fledged word language modeling benchmark vs. traditional LSTM.
 
