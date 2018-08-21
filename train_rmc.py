@@ -24,7 +24,7 @@ parser.add_argument('--emsize', type=int, default=192,
                     help='size of word embeddings')
 
 # NEW!: hyperparams for relational memory core (RMC)
-parser.add_argument('--memslots', type=int, default=4,
+parser.add_argument('--memslots', type=int, default=1,
                     help='number of memory slots of the relational memory core')
 parser.add_argument('--headsize', type=int, default=192,
                     help='size of the each head for multihead attention')

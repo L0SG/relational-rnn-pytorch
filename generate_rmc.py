@@ -33,7 +33,7 @@ parser.add_argument('--log-interval', type=int, default=100,
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
-# torch.manual_seed(args.seed)
+torch.manual_seed(args.seed)
 
 if torch.cuda.is_available():
     if not args.cuda:

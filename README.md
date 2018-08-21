@@ -17,7 +17,7 @@ Both RMC & LSTM models support [adaptive softmax](https://pytorch.org/docs/stabl
 benchmark codes are hard-forked from [official PyTorch word-language-model example](https://github.com/pytorch/examples/tree/master/word_language_model)
 
 # Requirements
-PyTorch 0.4.1
+PyTorch 0.4.1 & Python 3.6
 
 # Examples
 `python train_rmc.py --cuda ` for full training & test run of RMC with GPU.

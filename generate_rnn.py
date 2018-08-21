@@ -27,7 +27,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
-parser.add_argument('--temperature', type=float, default=1.0,
+parser.add_argument('--temperature', type=float, default=1.,
                     help='temperature - higher will increase diversity')
 parser.add_argument('--log-interval', type=int, default=100,
                     help='reporting interval')
@@ -35,6 +35,7 @@ args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
 torch.manual_seed(args.seed)
+
 if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
