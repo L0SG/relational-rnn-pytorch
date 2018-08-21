@@ -22,7 +22,7 @@ PyTorch 0.4.1 & Python 3.6
 # Examples
 `python train_rmc.py --cuda ` for full training & test run of RMC with GPU.
 
-`python train_rmc.py --cuda --adaptivesoftmax --cutoff 1000 5000 20000` if using large vocabulary dataset (like WikiText-103) to fit all the tensors in the VRAM.
+`python train_rmc.py --cuda --adaptivesoftmax --cutoffs 1000 5000 20000` if using large vocabulary dataset (like WikiText-103) to fit all the tensors in the VRAM.
 
 `python generate_rmc.py --cuda` for generating sentences from the trained model.
 
