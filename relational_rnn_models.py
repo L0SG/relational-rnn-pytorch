@@ -356,7 +356,7 @@ class RelationalMemory(nn.Module):
 
         return logit, next_memory
 
-    def forward(self, inputs, memory, targets):
+    def forward(self, inputs, memory, targets, require_logits=False):
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         memory = self.repackage_hidden(memory)
@@ -386,8 +386,13 @@ class RelationalMemory(nn.Module):
             loss = None
 
         # the forward pass only returns loss, because returning logits causes uneven VRAM usage of DataParallel
-        # if one wants extra things with logits outside this function, just putting logits at the return value is okay
-        return loss
+        # logits are provided only for sampling stage
+        if not require_logits:
+            return loss
+        else:
+            return logits, loss
+
+
 
 # ########## DEBUG: unit test code ##########
 # input_size = 44
