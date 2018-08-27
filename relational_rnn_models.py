@@ -385,7 +385,9 @@ class RelationalMemory(nn.Module):
         else:
             loss = None
 
-        return logits, loss
+        # the forward pass only returns loss, because returning logits causes uneven VRAM usage of DataParallel
+        # if one wants extra things with logits outside this function, just putting logits at the return value is okay
+        return loss
 
 # ########## DEBUG: unit test code ##########
 # input_size = 44

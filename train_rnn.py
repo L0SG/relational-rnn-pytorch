@@ -118,7 +118,7 @@ def batchify(data, bsz):
     return data.to(device)
 
 
-eval_batch_size = 10
+eval_batch_size = 32
 train_data = batchify(corpus.train, args.batch_size)
 val_data = batchify(corpus.valid, eval_batch_size)
 test_data = batchify(corpus.test, eval_batch_size)

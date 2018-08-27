@@ -171,7 +171,7 @@ if args.adaptivesoftmax:
     print("Cutoffs: " + str(args.cutoffs))
     if args.cutoffs[-1] > ntokens:
         raise ValueError("the last element of cutoff list must be lower than vocab size of the dataset")
-# model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
+
 model = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input_size=args.emsize, num_tokens=ntokens,
                          num_heads=args.numheads, num_blocks=args.numblocks, forget_bias=args.forgetbias,
                          input_bias=args.inputbias,
@@ -185,10 +185,6 @@ print("model built, total trainable params: " + str(total_params))
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
 
-
-# # TODO: should forget & input bias be trainable? sonnet is not i think
-# model.forget_bias.requires_grad = False
-# model.input_bias.requires_grad = False
 
 ###############################################################################
 # Training code
@@ -224,7 +220,7 @@ def evaluate(data_source):
             data, targets = get_batch(data_source, i)
             data = torch.t(data)
 
-            logits, loss = model(data, memory, targets)
+            loss = model(data, memory, targets)
             loss = torch.mean(loss)
 
             # data has shape [T * B, N]
@@ -251,7 +247,8 @@ def train():
         model.zero_grad()
         forward_start_time = time.time()
 
-        logits, loss = model(data, memory, targets)
+        # the forward pass of RMC just returns loss and does not return logits (DataParallel code optimization)
+        loss = model(data, memory, targets)
         loss = torch.mean(loss)
         total_loss += loss.item()
 
