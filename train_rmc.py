@@ -40,7 +40,7 @@ parser.add_argument('--gatestyle', type=str, default='unit',
                     help='Whether to use per-element gating (\'unit\'), per-memory slot gating (\'memory\'), or no gating at all (None).')
 parser.add_argument('--attmlplayers', type=int, default=3,
                     help='Number of layers to use in the post-attention MLP')
-parser.add_argument('--keysize', type=str, default=64,
+parser.add_argument('--keysize', type=int, default=64,
                     help='Size of vector to use for key & query vectors in the attention'
                          'computation. Defaults to None, in which case we use `head_size`')
 # parameters for adaptive softmax
@@ -174,9 +174,8 @@ if args.adaptivesoftmax:
 
 model = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input_size=args.emsize, num_tokens=ntokens,
                          num_heads=args.numheads, num_blocks=args.numblocks, forget_bias=args.forgetbias,
-                         input_bias=args.inputbias,
-                         attention_mlp_layers=args.attmlplayers, use_adaptive_softmax=args.adaptivesoftmax,
-                         cutoffs=args.cutoffs).to(device)
+                         input_bias=args.inputbias, attention_mlp_layers=args.attmlplayers, key_size=args.keysize,
+                         use_adaptive_softmax=args.adaptivesoftmax, cutoffs=args.cutoffs).to(device)
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 model = nn.DataParallel(model)
 
