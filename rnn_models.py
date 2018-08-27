@@ -47,6 +47,9 @@ class RNNModel(nn.Module):
                     raise ValueError('When using the tied flag, nhid must be equal to emsize')
                 self.decoder.weight = self.encoder.weight
         else:
+            # simple linear layer of nhid output size. used for adaptive softmax after
+            # directly applying softmax at the hidden states is a bad idea
+            self.decoder_adaptive = nn.Linear(nhid, nhid)
             self.use_adaptive_softmax = use_adaptive_softmax
             self.cutoffs = cutoffs
             if tie_weights:
@@ -95,7 +98,8 @@ class RNNModel(nn.Module):
             decoded = self.decoder(output.view(output.size(0) * output.size(1), output.size(2)))
             return decoded.view(output.size(0), output.size(1), decoded.size(1)), hidden
         else:
-            return output, hidden
+            decoded = self.decoder_adaptive(output.view(output.size(0) * output.size(1), output.size(2)))
+            return decoded.view(output.size(0), output.size(1), decoded.size(1)), hidden
 
     def init_hidden(self, bsz):
         weight = next(self.parameters())
