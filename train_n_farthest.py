@@ -1,3 +1,15 @@
+"""
+Implementation of 'Nth Farthest' task
+as defined in Santoro et. al., 2018
+(https://arxiv.org/abs/1806.01822)
+
+Note: Work in progress
+
+Author: Jessica Yung
+August 2018
+
+Relational Memory Core implementation mostly written by Sang-gil Lee, adapted by Jessica Yung.
+"""
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
@@ -7,13 +19,13 @@ from relational_rnn_general import RelationalMemory
 
 # network params
 learning_rate = 1e-3
-num_epochs = 50
+num_epochs = 10
 dtype = torch.float
 
 # data params
-num_vectors = 4
+num_vectors = 2
 num_dims = 2
-num_examples = 20
+num_examples = 1000
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
 batch_size = 4
@@ -81,6 +93,7 @@ device = torch.device("cpu")
 class RRNN(nn.Module):
     def __init__(self, batch_size):
         super(RRNN, self).__init__()
+        self.mlp_output_size = 5
         self.memory_size_per_row = args.headsize * args.numheads
         self.relational_memory = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input_size=args.input_size,
                          num_heads=args.numheads, num_blocks=args.numblocks, forget_bias=args.forgetbias,
@@ -88,12 +101,14 @@ class RRNN(nn.Module):
                          cutoffs=args.cutoffs).to(device)
         self.relational_memory = nn.DataParallel(self.relational_memory)
         # Map from memory to logits (categorical predictions)
-        self.out = nn.Linear(self.memory_size_per_row, num_vectors)
+        self.mlp = nn.Linear(self.memory_size_per_row, self.mlp_output_size)
+        self.out = nn.Linear(self.mlp_output_size, num_vectors)
         self.softmax = nn.Softmax()
 
     def forward(self, input, memory):
         memory = self.relational_memory(input, memory)
-        out = self.out(memory)
+        mlp = self.mlp(memory)
+        out = self.out(mlp)
         out = self.softmax(out)
 
         return out
@@ -167,7 +182,8 @@ for t in range(num_epochs):
     # test examples
     hist[t] = np.mean(epoch_loss).item()
     if t % 10 == 0:
-        print("train: ", y_pred, targets)
+        # print("train: ", y_pred, targets)
+        pass
     for i in range(num_test_batches):
         with torch.no_grad():
             data, targets = get_batch(X_test, y_test, i, batch_size=batch_size)
@@ -181,13 +197,13 @@ for t in range(num_epochs):
             epoch_test_acc[i] = acc
 
     if t % 10 == 0:
-        print(epoch_test_loss)
-        print(epoch_test_acc)
+        # print(epoch_test_loss)
+        # print(epoch_test_acc)
         print("Epoch {} train loss: {}".format(t, np.mean(epoch_test_loss).item()))
         print("Epoch {} test  loss: {}".format(t, np.mean(epoch_test_loss).item()))
         print("Epoch {} train  acc: {:.2f}".format(t, np.mean(epoch_acc).item()))
         print("Epoch {} test   acc: {:.2f}".format(t, np.mean(epoch_test_acc).item()))
-        print("test: ", ytest_pred, targets)
+        # print("test: ", ytest_pred, targets)
 
 ####################
 # Plot losses
@@ -196,12 +212,3 @@ for t in range(num_epochs):
 plt.plot(hist, label="Training loss")
 plt.legend()
 plt.show()
-
-"""
-# TODO: visualise preds
-plt.plot(y_pred.detach().numpy(), label="Preds")
-plt.plot(y_train.detach().numpy(), label="Data")
-plt.legend()
-plt.show()
-"""
-
