@@ -13,7 +13,7 @@ dtype = torch.float
 # data params
 num_vectors = 4
 num_dims = 2
-num_examples = 1000
+num_examples = 20
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
 batch_size = 2
@@ -89,7 +89,7 @@ class RRNN(nn.Module):
         self.relational_memory = nn.DataParallel(self.relational_memory)
         # Map from memory to logits (categorical predictions)
         self.out = nn.Linear(self.memory_size_per_row, num_vectors)
-        self.softmax = nn.Softmax(dim=num_vectors)
+        self.softmax = nn.Softmax()
 
     def forward(self, input, memory):
         memory = self.relational_memory(input, memory)
@@ -127,6 +127,9 @@ memory = model.relational_memory.module.initial_state(args.batch_size, trainable
 
 hist = np.zeros(num_epochs)
 
+def accuracy_score(y_pred, y_true):
+    return np.array(y_pred == y_true).sum()*1.0 / len(y_true)
+
 ####################
 # Train model
 ####################
@@ -141,6 +144,8 @@ for t in range(num_epochs):
 
         loss = loss_fn(y_pred, targets)
         loss = torch.mean(loss)
+        y_pred = torch.argmax(y_pred, dim=1)
+        acc = accuracy_score(y_pred, targets)
         hist[t] = loss.item()
 
         # Zero out gradient, else they will accumulate between epochs
@@ -155,6 +160,8 @@ for t in range(num_epochs):
         optimiser.step()
 
     # test examples
+    if t % 10 == 0:
+        print("train: ", y_pred, targets)
     for i in range(num_test_batches):
         with torch.no_grad():
             data, targets = get_batch(X_test, y_test, i, batch_size=batch_size)
@@ -162,10 +169,15 @@ for t in range(num_epochs):
 
             test_loss = loss_fn(ytest_pred, targets)
             test_loss = torch.mean(test_loss)
+            ytest_pred = torch.argmax(ytest_pred, dim=1)
+            test_acc = accuracy_score(ytest_pred, targets)
 
     if t % 10 == 0:
         print("Epoch {} train loss: {}".format(t, loss.item()))
         print("Epoch {} test  loss: {}".format(t, test_loss.item()))
+        print("Epoch {} train  acc: {:.2f}".format(t, acc.item()))
+        print("Epoch {} test   acc: {:.2f}".format(t, test_acc.item()))
+        print("test: ", ytest_pred, targets)
 
 ####################
 # Plot losses
