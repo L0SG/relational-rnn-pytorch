@@ -36,7 +36,7 @@ class RelationalMemory(nn.Module):
       ValueError: attention_mlp_layers is < 1.
     """
 
-    def __init__(self, mem_slots, head_size, input_size, num_tokens, num_heads=1, num_blocks=1, forget_bias=1.,
+    def __init__(self, mem_slots, head_size, input_size, num_heads=1, num_blocks=1, forget_bias=1.,
                  input_bias=0.,
                  gate_style='unit', attention_mlp_layers=2, key_size=None, use_adaptive_softmax=False, cutoffs=None):
         super(RelationalMemory, self).__init__()
@@ -99,28 +99,8 @@ class RelationalMemory(nn.Module):
         self.forget_bias = nn.Parameter(torch.tensor(forget_bias, dtype=torch.float32))
         self.input_bias = nn.Parameter(torch.tensor(input_bias, dtype=torch.float32))
 
-        ########## parameters for token-to-embed & output-to-token logit for softmax
-        self.dropout = nn.Dropout()
-        self.num_tokens = num_tokens
-        self.token_to_input_encoder = nn.Embedding(self.num_tokens, self.input_size)
-
-        # needs 2 linear layers for tying weights for embedding layers
-        # first match the "output" of the RMC to input_size, which is the embed dim
-        self.output_to_embed_decoder = nn.Linear(self.mem_slots * self.mem_size, self.input_size)
-        self.use_adaptive_softmax = use_adaptive_softmax
-        if not self.use_adaptive_softmax:
-            # then, this layer's weight can be tied to the embedding layer
-            self.embed_to_logit_decoder = nn.Linear(self.input_size, self.num_tokens)
-
-            # tie embedding weights of encoder & decoder
-            self.embed_to_logit_decoder.weight = self.token_to_input_encoder.weight
-
-            ########## loss function
-            self.criterion = nn.CrossEntropyLoss()
-        else:
-            # use adaptive softmax from the self.input_size logits, instead of the tied embed weights above
-            self.criterion_adaptive = nn.AdaptiveLogSoftmaxWithLoss(self.input_size, self.num_tokens,
-                                                                    cutoffs=cutoffs)
+        ########## loss function
+        self.criterion = nn.CrossEntropyLoss()
 
     def repackage_hidden(self, h):
         """Wraps hidden states in new Tensors, to detach them from their history."""
@@ -311,22 +291,20 @@ class RelationalMemory(nn.Module):
           output: This time step's output.
           next_memory: The next version of memory to use.
         """
-
-        # first embed the tokens into vectors
-        inputs_embed = self.dropout(self.token_to_input_encoder(inputs))
+        # inputs_embed = self.dropout(self.token_to_input_encoder(inputs))
 
         if treat_input_as_matrix:
             # keep (Batch, Seq, ...) dim (0, 1), flatten starting from dim 2
-            inputs_embed = inputs_embed.view(inputs_embed.shape[0], inputs_embed.shape[1], -1)
+            inputs = inputs.view(inputs.shape[0], inputs.shape[1], -1)
             # apply linear layer for dim 2
-            inputs_reshape = self.input_projector(inputs_embed)
+            inputs_reshape = self.input_projector(inputs)
         else:
             # keep (Batch, ...) dim (0), flatten starting from dim 1
-            inputs_embed = inputs_embed.view(inputs_embed.shape[0], -1)
+            inputs = inputs.view(inputs.shape[0], -1)
             # apply linear layer for dim 1
-            inputs_embed = self.input_projector(inputs_embed)
+            inputs = self.input_projector(inputs)
             # unsqueeze the time step to dim 1
-            inputs_reshape = inputs_embed.unsqueeze(dim=1)
+            inputs_reshape = inputs.unsqueeze(dim=1)
 
         memory_plus_input = torch.cat([memory, inputs_reshape], dim=1)
         next_memory = self.attend_over_memory(memory_plus_input)
@@ -344,19 +322,9 @@ class RelationalMemory(nn.Module):
 
         output = next_memory.view(next_memory.shape[0], -1)
 
-        # decode output to logit
-        output_embed = self.output_to_embed_decoder(output)
-        # TODO: this dropout is not mentioned in the paper. it's to match word-language-model dropout use case
-        output_embed = self.dropout(output_embed)
+        return output, next_memory
 
-        if not self.use_adaptive_softmax:
-            logit = self.embed_to_logit_decoder(output_embed)
-        else:
-            logit = output_embed
-
-        return logit, next_memory
-
-    def forward(self, inputs, memory, targets, require_logits=False):
+    def forward(self, inputs, memory, require_logits=False):
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         memory = self.repackage_hidden(memory)
@@ -372,25 +340,19 @@ class RelationalMemory(nn.Module):
         for idx_step in range(inputs.shape[1]):
             logit, memory = self.forward_step(inputs[:, idx_step], memory)
             logits.append(logit)
-        # concat the output from list(seq_length) of [batch, vocab] to [seq * batch, vocab]
         logits = torch.cat(logits)
+        return logits
 
-        if targets is not None:
-            if not self.use_adaptive_softmax:
-                # calculate loss inside this forward pass for more even VRAM usage of DataParallel
-                loss = self.criterion(logits, targets)
-            else:
-                # calculate the loss using adaptive softmax
-                _, loss = self.criterion_adaptive(logits, targets)
-        else:
-            loss = None
+        # loss = self.criterion(logits, targets)
 
         # the forward pass only returns loss, because returning logits causes uneven VRAM usage of DataParallel
         # logits are provided only for sampling stage
+        """
         if not require_logits:
             return loss
         else:
             return logits, loss
+        """
 
 
 
