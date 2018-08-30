@@ -16,7 +16,7 @@ num_dims = 2
 num_examples = 20
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
-batch_size = 2
+batch_size = 4
 
 ####################
 # Generate data
@@ -135,6 +135,10 @@ def accuracy_score(y_pred, y_true):
 ####################
 
 for t in range(num_epochs):
+    epoch_loss = np.zeros(num_batches)
+    epoch_acc = np.zeros(num_batches)
+    epoch_test_loss = np.zeros(num_test_batches)
+    epoch_test_acc = np.zeros(num_test_batches)
     for i in range(num_batches):
         data, targets = get_batch(X_train, y_train, i, batch_size=batch_size)
         model.zero_grad()
@@ -146,7 +150,8 @@ for t in range(num_epochs):
         loss = torch.mean(loss)
         y_pred = torch.argmax(y_pred, dim=1)
         acc = accuracy_score(y_pred, targets)
-        hist[t] = loss.item()
+        epoch_loss[i] = loss
+        epoch_acc[i] = acc
 
         # Zero out gradient, else they will accumulate between epochs
         optimiser.zero_grad()
@@ -160,6 +165,7 @@ for t in range(num_epochs):
         optimiser.step()
 
     # test examples
+    hist[t] = np.mean(epoch_loss).item()
     if t % 10 == 0:
         print("train: ", y_pred, targets)
     for i in range(num_test_batches):
@@ -171,12 +177,16 @@ for t in range(num_epochs):
             test_loss = torch.mean(test_loss)
             ytest_pred = torch.argmax(ytest_pred, dim=1)
             test_acc = accuracy_score(ytest_pred, targets)
+            epoch_test_loss[i] = loss
+            epoch_test_acc[i] = acc
 
     if t % 10 == 0:
-        print("Epoch {} train loss: {}".format(t, loss.item()))
-        print("Epoch {} test  loss: {}".format(t, test_loss.item()))
-        print("Epoch {} train  acc: {:.2f}".format(t, acc.item()))
-        print("Epoch {} test   acc: {:.2f}".format(t, test_acc.item()))
+        print(epoch_test_loss)
+        print(epoch_test_acc)
+        print("Epoch {} train loss: {}".format(t, np.mean(epoch_test_loss).item()))
+        print("Epoch {} test  loss: {}".format(t, np.mean(epoch_test_loss).item()))
+        print("Epoch {} train  acc: {:.2f}".format(t, np.mean(epoch_acc).item()))
+        print("Epoch {} test   acc: {:.2f}".format(t, np.mean(epoch_test_acc).item()))
         print("test: ", ytest_pred, targets)
 
 ####################
