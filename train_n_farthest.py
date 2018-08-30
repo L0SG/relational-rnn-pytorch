@@ -19,13 +19,14 @@ from sklearn.preprocessing import LabelBinarizer
 from relational_rnn_general import RelationalMemory
 
 # network params
-learning_rate = 1e-3
-num_epochs = 10
+learning_rate = 1e-4
+num_epochs = 100
 dtype = torch.float
+mlp_size = 32
 
 # data params
-num_vectors = 2
-num_dims = 2
+num_vectors = 4
+num_dims = 3
 num_examples = 1000
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
@@ -104,9 +105,9 @@ device = torch.device("cpu")
 ####################
 
 class RRNN(nn.Module):
-    def __init__(self, batch_size):
+    def __init__(self, mlp_size):
         super(RRNN, self).__init__()
-        self.mlp_output_size = 5
+        self.mlp_size = mlp_size
         self.memory_size_per_row = args.headsize * args.numheads
         self.relational_memory = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input_size=args.input_size,
                          num_heads=args.numheads, num_blocks=args.numblocks, forget_bias=args.forgetbias,
@@ -114,8 +115,17 @@ class RRNN(nn.Module):
                          cutoffs=args.cutoffs).to(device)
         self.relational_memory = nn.DataParallel(self.relational_memory)
         # Map from memory to logits (categorical predictions)
-        self.mlp = nn.Linear(self.memory_size_per_row, self.mlp_output_size)
-        self.out = nn.Linear(self.mlp_output_size, num_vectors)
+        self.mlp = nn.Sequential(
+            nn.Linear(self.memory_size_per_row, self.mlp_size),
+            nn.ReLU(),
+            nn.Linear(self.mlp_size, self.mlp_size),
+            nn.ReLU(),
+            nn.Linear(self.mlp_size, self.mlp_size),
+            nn.ReLU(),
+            nn.Linear(self.mlp_size, self.mlp_size),
+            nn.ReLU()
+        )
+        self.out = nn.Linear(self.mlp_size, num_vectors)
         self.softmax = nn.Softmax()
 
     def forward(self, input, memory):
@@ -126,7 +136,7 @@ class RRNN(nn.Module):
 
         return out
 
-model = RRNN(batch_size)
+model = RRNN(mlp_size)
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 print("Model built, total trainable params: " + str(total_params))
@@ -154,6 +164,7 @@ num_test_batches = int(len(X_test) / batch_size)
 memory = model.relational_memory.module.initial_state(args.batch_size, trainable=True).to(device)
 
 hist = np.zeros(num_epochs)
+test_hist = np.zeros(num_epochs)
 
 def accuracy_score(y_pred, y_true):
     return np.array(y_pred == y_true).sum()*1.0 / len(y_true)
@@ -193,7 +204,7 @@ for t in range(num_epochs):
         optimiser.step()
 
     # test examples
-    hist[t] = np.mean(epoch_loss).item()
+    hist[t] = np.mean(epoch_loss)
     if t % 10 == 0:
         # print("train: ", y_pred, targets)
         pass
@@ -208,14 +219,15 @@ for t in range(num_epochs):
             test_acc = accuracy_score(ytest_pred, targets)
             epoch_test_loss[i] = loss
             epoch_test_acc[i] = acc
+    test_hist[t] = np.mean(epoch_test_loss)
 
     if t % 10 == 0:
         # print(epoch_test_loss)
         # print(epoch_test_acc)
-        print("Epoch {} train loss: {}".format(t, np.mean(epoch_test_loss).item()))
-        print("Epoch {} test  loss: {}".format(t, np.mean(epoch_test_loss).item()))
-        print("Epoch {} train  acc: {:.2f}".format(t, np.mean(epoch_acc).item()))
-        print("Epoch {} test   acc: {:.2f}".format(t, np.mean(epoch_test_acc).item()))
+        print("Epoch {} train loss: {}".format(t, np.mean(epoch_test_loss)))
+        print("Epoch {} test  loss: {}".format(t, np.mean(epoch_test_loss)))
+        print("Epoch {} train  acc: {:.2f}".format(t, np.mean(epoch_acc)))
+        print("Epoch {} test   acc: {:.2f}".format(t, np.mean(epoch_test_acc)))
         # print("test: ", ytest_pred, targets)
 
 ####################
