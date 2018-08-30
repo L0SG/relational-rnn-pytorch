@@ -247,11 +247,13 @@ for t in range(num_epochs):
 plt.plot(hist, label="Training loss")
 plt.plot(test_hist, label="Test loss")
 plt.legend()
+plt.title("Cross entropy loss")
 plt.show()
 
 # Plot accuracy
-plt.plot(hist_acc, label="Training loss")
-plt.plot(test_hist_acc, label="Test loss")
+plt.plot(hist_acc, label="Training accuracy")
+plt.plot(test_hist_acc, label="Test accuracy")
+plt.title("Accuracy")
 plt.legend()
 plt.show()
 
