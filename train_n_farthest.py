@@ -14,7 +14,6 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.preprocessing import LabelBinarizer
 
 from relational_rnn_general import RelationalMemory
 
@@ -164,7 +163,9 @@ num_test_batches = int(len(X_test) / batch_size)
 memory = model.relational_memory.module.initial_state(args.batch_size, trainable=True).to(device)
 
 hist = np.zeros(num_epochs)
+hist_acc = np.zeros(num_epochs)
 test_hist = np.zeros(num_epochs)
+test_hist_acc = np.zeros(num_epochs)
 
 def accuracy_score(y_pred, y_true):
     return np.array(y_pred == y_true).sum()*1.0 / len(y_true)
@@ -217,17 +218,26 @@ for t in range(num_epochs):
             test_loss = torch.mean(test_loss)
             ytest_pred = torch.argmax(ytest_pred, dim=1)
             test_acc = accuracy_score(ytest_pred, targets)
-            epoch_test_loss[i] = loss
-            epoch_test_acc[i] = acc
-    test_hist[t] = np.mean(epoch_test_loss)
+            epoch_test_loss[i] = test_loss
+            epoch_test_acc[i] = test_acc
+
+    loss = np.mean(epoch_loss)
+    acc = np.mean(epoch_acc)
+    test_loss = np.mean(epoch_test_loss)
+    test_acc = np.mean(epoch_test_acc)
+
+    hist[t] = loss
+    hist_acc[t] = acc
+    test_hist[t] = test_loss
+    test_hist_acc[t] = test_acc
 
     if t % 10 == 0:
         # print(epoch_test_loss)
         # print(epoch_test_acc)
-        print("Epoch {} train loss: {}".format(t, np.mean(epoch_test_loss)))
-        print("Epoch {} test  loss: {}".format(t, np.mean(epoch_test_loss)))
-        print("Epoch {} train  acc: {:.2f}".format(t, np.mean(epoch_acc)))
-        print("Epoch {} test   acc: {:.2f}".format(t, np.mean(epoch_test_acc)))
+        print("Epoch {} train loss: {}".format(t, loss))
+        print("Epoch {} test  loss: {}".format(t, test_loss))
+        print("Epoch {} train  acc: {:.2f}".format(t, acc))
+        print("Epoch {} test   acc: {:.2f}".format(t, test_acc))
         # print("test: ", ytest_pred, targets)
 
 ####################
@@ -235,5 +245,14 @@ for t in range(num_epochs):
 ####################
 
 plt.plot(hist, label="Training loss")
+plt.plot(test_hist, label="Test loss")
 plt.legend()
 plt.show()
+
+# Plot accuracy
+plt.plot(hist_acc, label="Training loss")
+plt.plot(test_hist_acc, label="Test loss")
+plt.legend()
+plt.show()
+
+
