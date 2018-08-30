@@ -16,7 +16,7 @@ num_dims = 2
 num_examples = 1000
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
-batch_size = 4
+batch_size = 2
 
 ####################
 # Generate data
@@ -47,7 +47,7 @@ for i in range(num_examples):
 seq_len = num_vectors * (num_dims+1) + 5
 
 X = torch.Tensor(X)
-y = torch.Tensor(y)
+y = torch.LongTensor(y)
 
 X_train = X[:num_train]
 X_test = X[num_train:]
@@ -60,7 +60,7 @@ class RMCArguments:
         self.memslots = 1
         self.headsize = 3
         self.numheads = 4
-        self.input_size = 1 # or input_size
+        self.input_size = 1  # dimensions per timestep
         self.numheads = 4
         self.numblocks = 1
         self.forgetbias = 1.
@@ -87,11 +87,14 @@ class RRNN(nn.Module):
                          input_bias=args.inputbias,
                          cutoffs=args.cutoffs).to(device)
         self.relational_memory = nn.DataParallel(self.relational_memory)
-        self.out = nn.Linear(self.memory_size_per_row, batch_size)
+        # Map from memory to logits (categorical predictions)
+        self.out = nn.Linear(self.memory_size_per_row, num_vectors)
+        self.softmax = nn.Softmax(dim=num_vectors)
 
     def forward(self, input, memory):
-        memory = self.relational_memory(input, memory)[-1]
+        memory = self.relational_memory(input, memory)
         out = self.out(memory)
+        out = self.softmax(out)
 
         return out
 
@@ -111,7 +114,7 @@ def get_batch(X, y, batch_num, batch_size=32, batch_first=True):
     end = (batch_num+1)*batch_size
     return X[start:end], y[start:end]
 
-loss_fn = torch.nn.MSELoss(size_average=False)
+loss_fn = torch.nn.CrossEntropyLoss()
 
 optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -161,8 +164,8 @@ for t in range(num_epochs):
             test_loss = torch.mean(test_loss)
 
     if t % 10 == 0:
-        print("Epoch {} train MSE: {}".format(t, loss.item()))
-        print("Epoch {} test  MSE: {}".format(t, test_loss.item()))
+        print("Epoch {} train loss: {}".format(t, loss.item()))
+        print("Epoch {} test  loss: {}".format(t, test_loss.item()))
 
 ####################
 # Plot losses
