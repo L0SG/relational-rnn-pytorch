@@ -8,7 +8,7 @@ from relational_rnn_general import RelationalMemory
 # data params
 
 # network params
-learning_rate = 1e-2
+learning_rate = 1e-3
 num_epochs = 5
 dtype = torch.float
 
