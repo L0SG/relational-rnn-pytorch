@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.preprocessing import LabelBinarizer
 
 from relational_rnn_general import RelationalMemory
 
@@ -35,28 +36,40 @@ batch_size = 4
 ####################
 
 # For each example
-X = np.zeros((num_examples, num_vectors*(num_dims+1)+2))
+input_size = num_dims + num_vectors * 3
+
+X = np.zeros((num_examples, num_vectors, input_size))
 y = np.zeros(num_examples)
 
+# one_hot = LabelBinarizer()
+
+def one_hot_encode(array, num_dims=8):
+    one_hot = np.zeros((len(array), num_dims))
+    for i in range(len(array)):
+        one_hot[i, array[i]] = 1
+    return one_hot
+
 for i in range(num_examples):
-    n = np.random.choice(num_vectors, 1) # nth farthest from target vector
+    n = np.random.choice(num_vectors, 1)  # nth farthest from target vector
     labels = np.random.choice(num_vectors,num_vectors,replace=False)
-    m_index = np.random.choice(num_vectors, 1) # m comes after the m_index-th vector
+    m_index = np.random.choice(num_vectors, 1)  # m comes after the m_index-th vector
     m = labels[m_index]
 
+    # Vectors sampled from U(-1,1)
     vectors = np.random.rand(num_vectors, num_dims)*2 - 1
     target_vector = vectors[m_index]
     dist_from_target = np.linalg.norm(vectors - target_vector, axis=1)
-    X_single = np.zeros((num_vectors, num_dims + 1))
-    X_single[:, :-1] = vectors
-    X_single[:, -1] = labels
-    X_single = np.concatenate((X_single.reshape(-1), np.array([m,n]).reshape(-1)))
-    y_single = labels[np.argsort(dist_from_target)[-n]]
+    X_single = np.zeros((num_vectors, input_size))
+    X_single[:, :num_dims] = vectors
+    labels_onehot = one_hot_encode(labels, num_dims=num_vectors)
+    X_single[:, num_dims:num_dims+num_vectors] = labels_onehot
+    nm_onehot = np.reshape(one_hot_encode([n, m], num_dims=num_vectors), -1)
+    X_single[:, num_dims+num_vectors:] = np.tile(nm_onehot, (num_vectors, 1))
+    # X_single = np.concatenate((X_single.reshape(-1), np.array([m,n]).reshape(-1)))
+    y_single = labels[np.argsort(dist_from_target)[-(n+1)]]
 
     X[i,:] = X_single
     y[i] = y_single
-
-seq_len = num_vectors * (num_dims+1) + 5
 
 X = torch.Tensor(X)
 y = torch.LongTensor(y)
@@ -72,7 +85,7 @@ class RMCArguments:
         self.memslots = 1
         self.headsize = 3
         self.numheads = 4
-        self.input_size = 1  # dimensions per timestep
+        self.input_size = input_size  # dimensions per timestep
         self.numheads = 4
         self.numblocks = 1
         self.forgetbias = 1.
