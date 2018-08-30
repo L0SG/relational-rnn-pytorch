@@ -5,19 +5,22 @@ import numpy as np
 
 from relational_rnn_general import RelationalMemory
 
-# data params
-
 # network params
 learning_rate = 1e-3
-num_epochs = 5
+num_epochs = 50
 dtype = torch.float
 
+# data params
 num_vectors = 4
 num_dims = 2
 num_examples = 20
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
 batch_size = 4
+
+####################
+# Generate data
+####################
 
 # For each example
 X = np.zeros((num_examples, num_vectors*(num_dims+1)+2))
@@ -63,16 +66,17 @@ class RMCArguments:
         self.forgetbias = 1.
         self.inputbias = 0.
         self.attmlplayers = 3
-        self.adaptivesoftmax = False # TODO: keeping as false till can find nn.blah. else set as 'store_true'
         self.cutoffs = [10000, 50000, 100000]
-        self.batch_size = batch_size # TODO: idk why but I'm setting this as the sequence length = 10 really...? for init memory, bc else can't concat with unsqueezed input along dim 1 (10, 1, num_headsxhead_size)
+        self.batch_size = batch_size
         self.clip = 0.1
 
 args = RMCArguments()
 
 device = torch.device("cpu")
 
-# build model
+####################
+# Build model
+####################
 
 class RRNN(nn.Module):
     def __init__(self, batch_size):
@@ -92,23 +96,14 @@ class RRNN(nn.Module):
 
         return out
 
-
 model = RRNN(batch_size)
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-print("model built, total trainable params: " + str(total_params))
+print("Model built, total trainable params: " + str(total_params))
 
 # # TODO: should forget & input bias be trainable? sonnet is not i think
 # model.forget_bias.requires_grad = False
 # model.input_bias.requires_grad = False
-
-"""
-model = torch.nn.Sequential(
-    torch.nn.LSTM(input_size=lstm_input_size, hidden_size=h1, num_layers=1, dropout=0),
-    torch.nn.ReLU(),
-    torch.nn.Linear(h1, out_features=D_out)
-)
-"""
 
 def get_batch(X, y, batch_num, batch_size=32, batch_first=True):
     if not batch_first:
@@ -128,7 +123,11 @@ num_batches = int(len(X_train) / batch_size)
 memory = model.relational_memory.module.initial_state(args.batch_size, trainable=True).to(device)
 
 hist = np.zeros(num_epochs)
-# train model
+
+####################
+# Train model
+####################
+
 for t in range(num_epochs):
     for i in range(num_batches):
         data, targets = get_batch(X_train, y_train, i, batch_size=batch_size)
@@ -139,8 +138,6 @@ for t in range(num_epochs):
 
         loss = loss_fn(y_pred, targets)
         loss = torch.mean(loss)
-        if t % 100 == 0:
-            print("Epoch ", t, "MSE: ", loss.item())
         hist[t] = loss.item()
 
         # Zero out gradient, else they will accumulate between epochs
@@ -153,12 +150,22 @@ for t in range(num_epochs):
 
         # update parameters
         optimiser.step()
+    if t % 10 == 0:
+        print("Epoch ", t, "MSE: ", loss.item())
 
-plt.plot(y_pred.detach().numpy(), label="Preds")
-plt.plot(y_train.detach().numpy(), label="Data")
-plt.legend()
-plt.show()
+####################
+# Plot losses
+####################
 
 plt.plot(hist, label="Training loss")
 plt.legend()
 plt.show()
+
+"""
+# TODO: visualise preds
+plt.plot(y_pred.detach().numpy(), label="Preds")
+plt.plot(y_train.detach().numpy(), label="Data")
+plt.legend()
+plt.show()
+"""
+
