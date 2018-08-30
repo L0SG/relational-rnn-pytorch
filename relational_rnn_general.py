@@ -30,6 +30,7 @@ class RelationalMemory(nn.Module):
       key_size: Size of vector to use for key & query vectors in the attention
         computation. Defaults to None, in which case we use `head_size`.
       name: Name of the module.
+      return_all_outputs: Whether the model returns outputs for each step (like seq2seq) or only the final output.
     Raises:
       ValueError: gate_style not one of [None, 'memory', 'unit'].
       ValueError: num_blocks is < 1.
@@ -38,7 +39,7 @@ class RelationalMemory(nn.Module):
 
     def __init__(self, mem_slots, head_size, input_size, num_heads=1, num_blocks=1, forget_bias=1.,
                  input_bias=0.,
-                 gate_style='unit', attention_mlp_layers=2, key_size=None, use_adaptive_softmax=False, cutoffs=None):
+                 gate_style='unit', attention_mlp_layers=2, key_size=None, use_adaptive_softmax=False, cutoffs=None, return_all_outputs=False):
         super(RelationalMemory, self).__init__()
 
         ########## generic parameters for RMC ##########
@@ -99,8 +100,8 @@ class RelationalMemory(nn.Module):
         self.forget_bias = nn.Parameter(torch.tensor(forget_bias, dtype=torch.float32))
         self.input_bias = nn.Parameter(torch.tensor(input_bias, dtype=torch.float32))
 
-        ########## loss function
-        self.criterion = nn.CrossEntropyLoss()
+        ########## number of outputs returned #####
+        self.return_all_outputs = return_all_outputs
 
     def repackage_hidden(self, h):
         """Wraps hidden states in new Tensors, to detach them from their history."""
@@ -341,7 +342,11 @@ class RelationalMemory(nn.Module):
             logit, memory = self.forward_step(inputs[:, idx_step], memory)
             logits.append(logit)
         logits = torch.cat(logits)
-        return logits
+
+        if self.return_all_outputs:
+            return logits
+        else:
+            return logit
 
         # loss = self.criterion(logits, targets)
 
