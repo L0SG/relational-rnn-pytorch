@@ -13,7 +13,7 @@ dtype = torch.float
 # data params
 num_vectors = 4
 num_dims = 2
-num_examples = 20
+num_examples = 1000
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
 batch_size = 4
@@ -85,7 +85,6 @@ class RRNN(nn.Module):
         self.relational_memory = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input_size=args.input_size,
                          num_heads=args.numheads, num_blocks=args.numblocks, forget_bias=args.forgetbias,
                          input_bias=args.inputbias,
-                         attention_mlp_layers=args.attmlplayers, use_adaptive_softmax=args.adaptivesoftmax,
                          cutoffs=args.cutoffs).to(device)
         self.relational_memory = nn.DataParallel(self.relational_memory)
         self.out = nn.Linear(self.memory_size_per_row, batch_size)
@@ -119,6 +118,7 @@ optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, 'min', factor=0.5, patience=5)
 
 num_batches = int(len(X_train) / batch_size)
+num_test_batches = int(len(X_test) / batch_size)
 
 memory = model.relational_memory.module.initial_state(args.batch_size, trainable=True).to(device)
 
@@ -150,8 +150,19 @@ for t in range(num_epochs):
 
         # update parameters
         optimiser.step()
+
+    # test examples
+    for i in range(num_test_batches):
+        with torch.no_grad():
+            data, targets = get_batch(X_test, y_test, i, batch_size=batch_size)
+            ytest_pred = model(data, memory)
+
+            test_loss = loss_fn(ytest_pred, targets)
+            test_loss = torch.mean(test_loss)
+
     if t % 10 == 0:
-        print("Epoch ", t, "MSE: ", loss.item())
+        print("Epoch {} train MSE: {}".format(t, loss.item()))
+        print("Epoch {} test  MSE: {}".format(t, test_loss.item()))
 
 ####################
 # Plot losses
