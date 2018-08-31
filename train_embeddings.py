@@ -11,7 +11,7 @@ Output: A scalar.
 Author: Jessica Yung
 August 2018
 
-RRNN implementation mostly written by Sang-gil Lee, adapted by Jessica Yung.
+Relational Memory Core implementation mostly written by Sang-gil Lee, adapted by Jessica Yung.
 """
 import torch
 import torch.nn as nn
