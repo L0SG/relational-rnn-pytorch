@@ -24,12 +24,12 @@ dtype = torch.float
 mlp_size = 32
 
 # data params
-num_vectors = 4
+num_vectors = 8
 num_dims = 3
-num_examples = 1000
+num_examples = 10000
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
-batch_size = 4
+batch_size = 16
 
 ####################
 # Generate data
@@ -40,8 +40,6 @@ input_size = num_dims + num_vectors * 3
 
 X = np.zeros((num_examples, num_vectors, input_size))
 y = np.zeros(num_examples)
-
-# one_hot = LabelBinarizer()
 
 def one_hot_encode(array, num_dims=8):
     one_hot = np.zeros((len(array), num_dims))
@@ -65,7 +63,6 @@ for i in range(num_examples):
     X_single[:, num_dims:num_dims+num_vectors] = labels_onehot
     nm_onehot = np.reshape(one_hot_encode([n, m], num_dims=num_vectors), -1)
     X_single[:, num_dims+num_vectors:] = np.tile(nm_onehot, (num_vectors, 1))
-    # X_single = np.concatenate((X_single.reshape(-1), np.array([m,n]).reshape(-1)))
     y_single = labels[np.argsort(dist_from_target)[-(n+1)]]
 
     X[i,:] = X_single
@@ -82,9 +79,8 @@ y_test = y[num_train:]
 
 class RMCArguments:
     def __init__(self):
-        self.memslots = 1
-        self.headsize = 3
-        self.numheads = 4
+        self.memslots = 8
+        self.headsize = 16
         self.input_size = input_size  # dimensions per timestep
         self.numheads = 4
         self.numblocks = 1
@@ -107,7 +103,7 @@ class RRNN(nn.Module):
     def __init__(self, mlp_size):
         super(RRNN, self).__init__()
         self.mlp_size = mlp_size
-        self.memory_size_per_row = args.headsize * args.numheads
+        self.memory_size_per_row = args.headsize * args.numheads * args.memslots
         self.relational_memory = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input_size=args.input_size,
                          num_heads=args.numheads, num_blocks=args.numblocks, forget_bias=args.forgetbias,
                          input_bias=args.inputbias,
@@ -206,7 +202,7 @@ for t in range(num_epochs):
 
     # test examples
     hist[t] = np.mean(epoch_loss)
-    if t % 10 == 0:
+    if t % 5 == 0:
         # print("train: ", y_pred, targets)
         pass
     for i in range(num_test_batches):
