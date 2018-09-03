@@ -44,12 +44,12 @@ Both RMC & LSTM have ~11M parameters. Please refer to the training code for deta
 
 | Models        | Valid Perplexity|Test Perplexity           | Forward pass ms/batch (TITAN Xp) |  Forward pass ms/batch (TITAN V) |
 |:-------------:|:-------------:|:-------------:| :-------------:| :-------------:|
-| LSTM (CuDNN)      |111.31 | 105.56 | 3~3.5 | 3~4 |
-| LSTM (For Loop)      |Same as CuDNN | Same as CuDNN | 13~15 | 25~30 |
-| RMC      | 112.77 | 107.21      |  110~110  | 180~200|
+| LSTM (CuDNN)      |111.31 | 105.56 | 26~27 | 40~41 |
+| LSTM (For Loop)      |Same as CuDNN | Same as CuDNN | 30~31 | 60~61 |
+| RMC      | 112.77 | 107.21      |  110~130  | 220~230|
 
 RMC can reach a comparable performance to LSTM (with heavy hyperparameter search), but it turns out that the RMC is very slow. The multi-head self-attention at every time step may be the culprit here.
-Using LSTMCell with for loop (which is more "fair" benchmark for RMC) slows down the speed by 3~5x, but it's still much faster.
+Using LSTMCell with for loop (which is more "fair" benchmark for RMC) slows down the forward pass, but it's still much faster.
 
 Please also note that the hyperparameter for RMC is a worst-case scenario in terms of speed, because it used a single memory slot (as described in the paper) and did not benefit from a row-wise weight sharing from multi-slot memory.  
 

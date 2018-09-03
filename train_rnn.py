@@ -168,7 +168,7 @@ total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print("model built, total trainable params: " + str(total_params))
 if not args.cudnn:
     print(
-        "--cudnn is set to False. the model will use RNNCell with for loop, instead of cudnn-optimzed RNN API. Expect 3~5x slowdown.")
+        "--cudnn is set to False. the model will use RNNCell with for loop, instead of cudnn-optimzed RNN API. Expect a minor slowdown.")
 
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
