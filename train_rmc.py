@@ -243,13 +243,19 @@ def train():
         # transpose the data to [batch, seq]
         data = torch.t(data)
 
-        model.zero_grad()
+        # synchronize cuda for a proper speed benchmark
+        torch.cuda.synchronize()
+
         forward_start_time = time.time()
+        model.zero_grad()
 
         # the forward pass of RMC just returns loss and does not return logits (DataParallel code optimization)
         loss = model(data, memory, targets)
         loss = torch.mean(loss)
         total_loss += loss.item()
+
+        # synchronize cuda for a proper speed benchmark
+        torch.cuda.synchronize()
 
         forward_elapsed = time.time() - forward_start_time
         forward_elapsed_time += forward_elapsed

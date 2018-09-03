@@ -232,6 +232,10 @@ def train():
     hidden = model.init_hidden(args.batch_size)
     for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
         data, targets = get_batch(train_data, i)
+
+        # synchronize cuda for a proper speed benchmark
+        torch.cuda.synchronize()
+
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         forward_start_time = time.time()
@@ -244,6 +248,10 @@ def train():
             loss = criterion(output.view(-1, ntokens), targets)
         else:
             _, loss = criterion_adaptive(output.view(-1, args.nhid), targets)
+        total_loss += loss.item()
+
+        # synchronize cuda for a proper speed benchmark
+        torch.cuda.synchronize()
 
         forward_elapsed = time.time() - forward_start_time
         forward_elapsed_time += forward_elapsed
@@ -252,8 +260,6 @@ def train():
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
-
-        total_loss += loss.item()
 
         if batch % args.log_interval == 0 and batch > 0:
             cur_loss = total_loss / args.log_interval
