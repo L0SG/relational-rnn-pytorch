@@ -14,10 +14,26 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
+from argparse import ArgumentParser
 
 from relational_rnn_general import RelationalMemory
 
-device = torch.device("cuda")
+parser = ArgumentParser()
+
+# Model parameters.
+parser.add_argument('--cuda', type=str, default=True,
+                    help='Whether to use CUDA (GPU). Default=True. (Set as 0 for False)')
+
+parse_args = parser.parse_args()
+
+is_cuda = bool(int(parse_args.cuda))
+
+if is_cuda:
+    exp_device = "cuda"
+else:
+    exp_device = "cpu"
+
+device = torch.device(exp_device)
 
 # network params
 learning_rate = 1e-4
@@ -132,7 +148,9 @@ class RRNN(nn.Module):
 
         return out
 
-model = RRNN(mlp_size).cuda()
+model = RRNN(mlp_size)
+if is_cuda:
+    model = model.cuda()
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 print("Model built, total trainable params: " + str(total_params))
