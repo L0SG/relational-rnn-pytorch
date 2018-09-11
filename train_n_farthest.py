@@ -14,22 +14,40 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
+from argparse import ArgumentParser
 
 from relational_rnn_general import RelationalMemory
 
+parser = ArgumentParser()
+
+# Model parameters.
+parser.add_argument('--cuda', type=str, default=True,
+                    help='Whether to use CUDA (GPU). Default=True. (Set as 0 for False)')
+
+parse_args = parser.parse_args()
+
+is_cuda = bool(int(parse_args.cuda))
+
+if is_cuda:
+    exp_device = "cuda"
+else:
+    exp_device = "cpu"
+
+device = torch.device(exp_device)
+
 # network params
 learning_rate = 1e-4
-num_epochs = 100
+num_epochs = 1000
 dtype = torch.float
-mlp_size = 32
+mlp_size = 256
 
 # data params
 num_vectors = 8
-num_dims = 3
+num_dims = 16
 num_examples = 10000
 test_size = 0.2
 num_train = int((1-test_size) * num_examples)
-batch_size = 16
+batch_size = 1600
 
 ####################
 # Generate data
@@ -68,8 +86,8 @@ for i in range(num_examples):
     X[i,:] = X_single
     y[i] = y_single
 
-X = torch.Tensor(X)
-y = torch.LongTensor(y)
+X = torch.Tensor(X).to(device)
+y = torch.LongTensor(y).to(device)
 
 X_train = X[:num_train]
 X_test = X[num_train:]
@@ -80,20 +98,19 @@ y_test = y[num_train:]
 class RMCArguments:
     def __init__(self):
         self.memslots = 8
-        self.headsize = 16
+        self.numheads = 8
+        self.headsize = int(2048 / (self.numheads * self.memslots))
         self.input_size = input_size  # dimensions per timestep
-        self.numheads = 4
         self.numblocks = 1
         self.forgetbias = 1.
         self.inputbias = 0.
-        self.attmlplayers = 3
+        self.attmlplayers = 2
         self.cutoffs = [10000, 50000, 100000]
         self.batch_size = batch_size
         self.clip = 0.1
 
 args = RMCArguments()
 
-device = torch.device("cpu")
 
 ####################
 # Build model
@@ -132,6 +149,8 @@ class RRNN(nn.Module):
         return out
 
 model = RRNN(mlp_size)
+if is_cuda:
+    model = model.cuda()
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 print("Model built, total trainable params: " + str(total_params))
