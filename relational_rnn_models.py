@@ -3,7 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 
-
 # this class largely follows the official sonnet implementation
 # https://github.com/deepmind/sonnet/blob/master/sonnet/python/modules/relational_memory.py
 
@@ -388,9 +387,9 @@ class RelationalMemory(nn.Module):
         # the forward pass only returns loss, because returning logits causes uneven VRAM usage of DataParallel
         # logits are provided only for sampling stage
         if not require_logits:
-            return loss
+            return loss, memory
         else:
-            return logits, loss
+            return logits, loss, memory
 
 
 

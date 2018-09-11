@@ -219,7 +219,7 @@ def evaluate(data_source):
             data, targets = get_batch(data_source, i)
             data = torch.t(data)
 
-            loss = model(data, memory, targets)
+            loss, memory = model(data, memory, targets)
             loss = torch.mean(loss)
 
             # data has shape [T * B, N]
@@ -250,7 +250,7 @@ def train():
         model.zero_grad()
 
         # the forward pass of RMC just returns loss and does not return logits (DataParallel code optimization)
-        loss = model(data, memory, targets)
+        loss, memory = model(data, memory, targets)
         loss = torch.mean(loss)
         total_loss += loss.item()
 

@@ -72,7 +72,7 @@ input = torch.randint(ntokens, (1, 1), dtype=torch.long).to(device)
 with open(args.outf, 'w') as outf:
     with torch.no_grad():  # no tracking history
         for i in range(args.words):
-            output, _ = model(input, memory, None, require_logits=True)
+            output, _, memory = model(input, memory, None, require_logits=True)
             word_weights = output.squeeze().div(args.temperature).exp().cpu()
             word_idx = torch.multinomial(word_weights, 1)[0]
             input.fill_(word_idx)
