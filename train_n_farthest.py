@@ -14,19 +14,17 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
-from datetime import datetime
-import pickle
 from argparse import ArgumentParser
+from comet_ml import Experiment
 
 from relational_rnn_general import RelationalMemory
 
+experiment = Experiment(api_key="fQCW6qvjBmkubI28MZubfxGmy", project_name="rrnn-nth-farthest")
 parser = ArgumentParser()
 
 # Model parameters.
 parser.add_argument('--cuda', type=str, default=True,
                     help='Whether to use CUDA (GPU). Default=True. (Set as 0 for False)')
-
-filename = 'nth_farthest' + str(datetime.now().date()) + '-' + str(datetime.now().time())[:2] + str(datetime.now().time())[3:5] + '.pickle'
 
 parse_args = parser.parse_args()
 
@@ -250,6 +248,13 @@ for t in range(num_epochs):
     test_hist[t] = test_loss
     test_hist_acc[t] = test_acc
 
+    # Log to Comet.ml
+    experiment.log_metric("loss", loss, step=t)
+    experiment.log_metric("test_loss", test_loss, step=t)
+    experiment.log_metric("accuracy", acc, step=t)
+    experiment.log_metric("test_accuracy", test_acc, step=t)
+
+
     if t % 10 == 0:
         # print(epoch_test_loss)
         # print(epoch_test_acc)
@@ -259,16 +264,9 @@ for t in range(num_epochs):
         print("Epoch {} test   acc: {:.2f}".format(t, test_acc))
         # print("test: ", ytest_pred, targets)
 
-    if t % 1000 == 0:
-        with open(filename, 'wb') as f:
-            pickle.dump([hist, test_hist, hist_acc, test_hist_acc], f)
-
 ####################
 # Plot losses
 ####################
-
-with open(filename, 'wb') as f:
-    pickle.dump([hist, test_hist, hist_acc, test_hist_acc], f)
 
 plt.plot(hist, label="Training loss")
 plt.plot(test_hist, label="Test loss")
