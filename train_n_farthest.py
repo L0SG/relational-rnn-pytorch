@@ -24,6 +24,8 @@ parser = ArgumentParser()
 parser.add_argument('--cuda', type=str, default=True,
                     help='Whether to use CUDA (GPU). Default=True. (Set as 0 for False)')
 
+filename = 'nth_farthest' + str(datetime.now().date()) + '-' + str(datetime.now().time())[:2] + str(datetime.now().time())[3:5] + '.pickle'
+
 parse_args = parser.parse_args()
 
 is_cuda = bool(int(parse_args.cuda))
@@ -255,9 +257,16 @@ for t in range(num_epochs):
         print("Epoch {} test   acc: {:.2f}".format(t, test_acc))
         # print("test: ", ytest_pred, targets)
 
+    if t % 1000 == 0:
+        with open(filename, 'wb') as f:
+            pickle.dump([hist, test_hist, hist_acc, test_hist_acc], f)
+
 ####################
 # Plot losses
 ####################
+
+with open(filename, 'wb') as f:
+    pickle.dump([hist, test_hist, hist_acc, test_hist_acc], f)
 
 plt.plot(hist, label="Training loss")
 plt.plot(test_hist, label="Test loss")
