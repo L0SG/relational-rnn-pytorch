@@ -180,7 +180,7 @@ loss_fn = torch.nn.CrossEntropyLoss()
 
 optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, 'min', factor=0.5, patience=5)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, 'min', factor=0.5, patience=5, min_lr=8e-5)
 
 # num_batches = int(len(X_train) / batch_size)
 num_test_batches = int(len(X_test) / batch_size)
