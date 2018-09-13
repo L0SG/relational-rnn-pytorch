@@ -1,9 +1,11 @@
 """
 Implementation of 'Nth Farthest' task
-as defined in Santoro et. al., 2018
-(https://arxiv.org/abs/1806.01822)
+as defined in Santoro, Faulkner and Raposo et. al., 2018
+(Relational recurrent neural networks, https://arxiv.org/abs/1806.01822)
 
-Note: Work in progress
+Note: The training data is re-generated each epoch as in the
+Sonnet implementation. This avoids overfitting but means that the
+experiments may take longer.
 
 Author: Jessica Yung
 August 2018
@@ -15,11 +17,9 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
 from argparse import ArgumentParser
-from comet_ml import Experiment
 
 from relational_rnn_general import RelationalMemory
 
-experiment = Experiment(api_key="fQCW6qvjBmkubI28MZubfxGmy", project_name="rrnn-nth-farthest")
 parser = ArgumentParser()
 
 # Model parameters.
@@ -46,14 +46,9 @@ mlp_size = 256
 # data params
 num_vectors = 8
 num_dims = 16
-# num_examples = 10000
-num_batches = 6  # set batches per epoch because we are generating data from scratch each time
-                 # so now 1 epoch '=' 6 epochs, it's just the frequency of testing
-# test_size = 0.2
-num_test_examples = 3200
-
-# num_train = int((1-test_size) * num_examples)
 batch_size = 1600
+num_batches = 6  # set batches per epoch because we are generating data from scratch each time
+num_test_examples = 3200
 
 ####################
 # Generate data
@@ -99,7 +94,7 @@ def get_examples(num_examples, num_vectors, num_dims, device="cuda"):
 
     X = torch.Tensor(X).to(device)
     y = torch.LongTensor(y).to(device)
-    
+
     return X, y
 
 X_test, y_test = get_examples(num_test_examples, num_vectors, num_dims, device=exp_device)
@@ -207,7 +202,7 @@ for t in range(num_epochs):
     for i in range(num_batches):
         data, targets = get_examples(batch_size, num_vectors, num_dims, device=exp_device)
         model.zero_grad()
-        # model.hidden = model.init_hidden()
+
         # forward pass
         y_pred = model(data, memory)
 
@@ -224,16 +219,13 @@ for t in range(num_epochs):
         # backward pass
         loss.backward()
 
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        # this helps prevent exploding gradient in RNNs
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
         # update parameters
         optimiser.step()
 
     # test examples
-    hist[t] = np.mean(epoch_loss)
-    if t % 5 == 0:
-        # print("train: ", y_pred, targets)
-        pass
     for i in range(num_test_batches):
         with torch.no_grad():
             data, targets = get_batch(X_test, y_test, i, batch_size=batch_size)
@@ -256,23 +248,13 @@ for t in range(num_epochs):
     test_hist[t] = test_loss
     test_hist_acc[t] = test_acc
 
-    # Log to Comet.ml
-    experiment.log_metric("loss", loss, step=t)
-    experiment.log_metric("test_loss", test_loss, step=t)
-    experiment.log_metric("accuracy", acc, step=t)
-    experiment.log_metric("test_accuracy", test_acc, step=t)
-
     if t % 10 == 0:
-        # print(epoch_test_loss)
-        # print(epoch_test_acc)
         print("Epoch {} train loss: {}".format(t, loss))
         print("Epoch {} test  loss: {}".format(t, test_loss))
         print("Epoch {} train  acc: {:.2f}".format(t, acc))
         print("Epoch {} test   acc: {:.2f}".format(t, test_acc))
-        # print("test: ", ytest_pred, targets)
 
-##############
-######
+####################
 # Plot losses
 ####################
 
