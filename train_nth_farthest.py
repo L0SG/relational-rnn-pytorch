@@ -23,23 +23,21 @@ from relational_rnn_general import RelationalMemory
 parser = ArgumentParser()
 
 # Model parameters.
-parser.add_argument('--cuda', type=str, default=True,
-                    help='Whether to use CUDA (GPU). Default=True. (Set as 0 for False)')
+parser.add_argument('--cuda', action='store_true',
+                    help='use CUDA')
 
 parse_args = parser.parse_args()
 
-is_cuda = bool(int(parse_args.cuda))
+if torch.cuda.is_available():
+    if not parse_args.cuda:
+        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
-if is_cuda:
-    exp_device = "cuda"
-else:
-    exp_device = "cpu"
-
-device = torch.device(exp_device)
+device = torch.device("cuda" if parse_args.cuda else "cpu")
 
 # network params
 learning_rate = 1e-4
 num_epochs = 1000000
+num_epochs = 100
 dtype = torch.float
 mlp_size = 256
 
@@ -57,39 +55,42 @@ num_test_examples = 3200
 # For each example
 input_size = num_dims + num_vectors * 3
 
+
 def one_hot_encode(array, num_dims=8):
     one_hot = np.zeros((len(array), num_dims))
     for i in range(len(array)):
         one_hot[i, array[i]] = 1
     return one_hot
 
+
 def get_example(num_vectors, num_dims):
     input_size = num_dims + num_vectors * 3
     n = np.random.choice(num_vectors, 1)  # nth farthest from target vector
-    labels = np.random.choice(num_vectors,num_vectors,replace=False)
+    labels = np.random.choice(num_vectors, num_vectors, replace=False)
     m_index = np.random.choice(num_vectors, 1)  # m comes after the m_index-th vector
     m = labels[m_index]
 
     # Vectors sampled from U(-1,1)
-    vectors = np.random.rand(num_vectors, num_dims)*2 - 1
+    vectors = np.random.rand(num_vectors, num_dims) * 2 - 1
     target_vector = vectors[m_index]
     dist_from_target = np.linalg.norm(vectors - target_vector, axis=1)
     X_single = np.zeros((num_vectors, input_size))
     X_single[:, :num_dims] = vectors
     labels_onehot = one_hot_encode(labels, num_dims=num_vectors)
-    X_single[:, num_dims:num_dims+num_vectors] = labels_onehot
+    X_single[:, num_dims:num_dims + num_vectors] = labels_onehot
     nm_onehot = np.reshape(one_hot_encode([n, m], num_dims=num_vectors), -1)
-    X_single[:, num_dims+num_vectors:] = np.tile(nm_onehot, (num_vectors, 1))
-    y_single = labels[np.argsort(dist_from_target)[-(n+1)]]
+    X_single[:, num_dims + num_vectors:] = np.tile(nm_onehot, (num_vectors, 1))
+    y_single = labels[np.argsort(dist_from_target)[-(n + 1)]]
 
     return X_single, y_single
 
-def get_examples(num_examples, num_vectors, num_dims, device="cuda"):
+
+def get_examples(num_examples, num_vectors, num_dims, device):
     X = np.zeros((num_examples, num_vectors, input_size))
     y = np.zeros(num_examples)
     for i in range(num_examples):
         X_single, y_single = get_example(num_vectors, num_dims)
-        X[i,:] = X_single
+        X[i, :] = X_single
         y[i] = y_single
 
     X = torch.Tensor(X).to(device)
@@ -97,7 +98,8 @@ def get_examples(num_examples, num_vectors, num_dims, device="cuda"):
 
     return X, y
 
-X_test, y_test = get_examples(num_test_examples, num_vectors, num_dims, device=exp_device)
+
+X_test, y_test = get_examples(num_test_examples, num_vectors, num_dims, device)
 
 
 class RMCArguments:
@@ -110,9 +112,9 @@ class RMCArguments:
         self.forgetbias = 1.
         self.inputbias = 0.
         self.attmlplayers = 2
-        self.cutoffs = [10000, 50000, 100000]
         self.batch_size = batch_size
         self.clip = 0.1
+
 
 args = RMCArguments()
 
@@ -126,11 +128,10 @@ class RRNN(nn.Module):
         super(RRNN, self).__init__()
         self.mlp_size = mlp_size
         self.memory_size_per_row = args.headsize * args.numheads * args.memslots
-        self.relational_memory = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input_size=args.input_size,
-                         num_heads=args.numheads, num_blocks=args.numblocks, forget_bias=args.forgetbias,
-                         input_bias=args.inputbias,
-                         cutoffs=args.cutoffs).to(device)
-        self.relational_memory = nn.DataParallel(self.relational_memory)
+        self.relational_memory = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize,
+                                                  input_size=args.input_size,
+                                                  num_heads=args.numheads, num_blocks=args.numblocks,
+                                                  forget_bias=args.forgetbias, input_bias=args.inputbias)
         # Map from memory to logits (categorical predictions)
         self.mlp = nn.Sequential(
             nn.Linear(self.memory_size_per_row, self.mlp_size),
@@ -143,33 +144,30 @@ class RRNN(nn.Module):
             nn.ReLU()
         )
         self.out = nn.Linear(self.mlp_size, num_vectors)
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, input, memory):
-        memory = self.relational_memory(input, memory)
-        mlp = self.mlp(memory)
+        logit, memory = self.relational_memory(input, memory)
+        mlp = self.mlp(logit)
         out = self.out(mlp)
         out = self.softmax(out)
 
-        return out
+        return out, memory
 
-model = RRNN(mlp_size)
-if is_cuda:
-    model = model.cuda()
+
+model = RRNN(mlp_size).to(device)
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 print("Model built, total trainable params: " + str(total_params))
 
-# # TODO: should forget & input bias be trainable? sonnet is not i think
-# model.forget_bias.requires_grad = False
-# model.input_bias.requires_grad = False
 
 def get_batch(X, y, batch_num, batch_size=32, batch_first=True):
     if not batch_first:
         raise NotImplementedError
-    start = batch_num*batch_size
-    end = (batch_num+1)*batch_size
+    start = batch_num * batch_size
+    end = (batch_num + 1) * batch_size
     return X[start:end], y[start:end]
+
 
 loss_fn = torch.nn.CrossEntropyLoss()
 
@@ -180,15 +178,17 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, 'min', factor=
 # num_batches = int(len(X_train) / batch_size)
 num_test_batches = int(len(X_test) / batch_size)
 
-memory = model.relational_memory.module.initial_state(args.batch_size, trainable=True).to(device)
+memory = model.relational_memory.initial_state(args.batch_size, trainable=True).to(device)
 
 hist = np.zeros(num_epochs)
 hist_acc = np.zeros(num_epochs)
 test_hist = np.zeros(num_epochs)
 test_hist_acc = np.zeros(num_epochs)
 
+
 def accuracy_score(y_pred, y_true):
-    return np.array(y_pred == y_true).sum()*1.0 / len(y_true)
+    return np.array(y_pred == y_true).sum() * 1.0 / len(y_true)
+
 
 ####################
 # Train model
@@ -200,11 +200,12 @@ for t in range(num_epochs):
     epoch_test_loss = np.zeros(num_test_batches)
     epoch_test_acc = np.zeros(num_test_batches)
     for i in range(num_batches):
-        data, targets = get_examples(batch_size, num_vectors, num_dims, device=exp_device)
+        data, targets = get_examples(batch_size, num_vectors, num_dims, device)
         model.zero_grad()
 
         # forward pass
-        y_pred = model(data, memory)
+        # replace "_" with "memory" if you want to make the RNN stateful
+        y_pred, _ = model(data, memory)
 
         loss = loss_fn(y_pred, targets)
         loss = torch.mean(loss)
@@ -229,7 +230,7 @@ for t in range(num_epochs):
     for i in range(num_test_batches):
         with torch.no_grad():
             data, targets = get_batch(X_test, y_test, i, batch_size=batch_size)
-            ytest_pred = model(data, memory)
+            ytest_pred, _ = model(data, memory)
 
             test_loss = loss_fn(ytest_pred, targets)
             test_loss = torch.mean(test_loss)
@@ -270,5 +271,3 @@ plt.plot(test_hist_acc, label="Test accuracy")
 plt.title("Accuracy")
 plt.legend()
 plt.show()
-
-

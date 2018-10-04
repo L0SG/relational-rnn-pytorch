@@ -11,6 +11,7 @@ import numpy as np
 class RelationalMemory(nn.Module):
     """
     Constructs a `RelationalMemory` object.
+    This class is same as the RMC from relational_rnn_models.py, but without language modeling-specific variables.
     Args:
       mem_slots: The total number of memory slots to use.
       head_size: The size of an attention head.
@@ -30,6 +31,8 @@ class RelationalMemory(nn.Module):
       key_size: Size of vector to use for key & query vectors in the attention
         computation. Defaults to None, in which case we use `head_size`.
       name: Name of the module.
+
+      # NEW flag for this class
       return_all_outputs: Whether the model returns outputs for each step (like seq2seq) or only the final output.
     Raises:
       ValueError: gate_style not one of [None, 'memory', 'unit'].
@@ -37,9 +40,8 @@ class RelationalMemory(nn.Module):
       ValueError: attention_mlp_layers is < 1.
     """
 
-    def __init__(self, mem_slots, head_size, input_size, num_heads=1, num_blocks=1, forget_bias=1.,
-                 input_bias=0.,
-                 gate_style='unit', attention_mlp_layers=2, key_size=None, use_adaptive_softmax=False, cutoffs=None, return_all_outputs=False):
+    def __init__(self, mem_slots, head_size, input_size, num_heads=1, num_blocks=1, forget_bias=1., input_bias=0.,
+                 gate_style='unit', attention_mlp_layers=2, key_size=None, return_all_outputs=False):
         super(RelationalMemory, self).__init__()
 
         ########## generic parameters for RMC ##########
@@ -292,7 +294,6 @@ class RelationalMemory(nn.Module):
           output: This time step's output.
           next_memory: The next version of memory to use.
         """
-        # inputs_embed = self.dropout(self.token_to_input_encoder(inputs))
 
         if treat_input_as_matrix:
             # keep (Batch, Seq, ...) dim (0, 1), flatten starting from dim 2
@@ -325,7 +326,7 @@ class RelationalMemory(nn.Module):
 
         return output, next_memory
 
-    def forward(self, inputs, memory, require_logits=False):
+    def forward(self, inputs, memory):
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         memory = self.repackage_hidden(memory)
@@ -344,20 +345,10 @@ class RelationalMemory(nn.Module):
         logits = torch.cat(logits)
 
         if self.return_all_outputs:
-            return logits
+            return logits, memory
         else:
-            return logit
+            return logit, memory
 
-        # loss = self.criterion(logits, targets)
-
-        # the forward pass only returns loss, because returning logits causes uneven VRAM usage of DataParallel
-        # logits are provided only for sampling stage
-        """
-        if not require_logits:
-            return loss
-        else:
-            return logits, loss
-        """
 
 
 

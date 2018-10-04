@@ -16,6 +16,8 @@ Both RMC & LSTM models support [adaptive softmax](https://pytorch.org/docs/stabl
 
 benchmark codes are hard-forked from [official PyTorch word-language-model example](https://github.com/pytorch/examples/tree/master/word_language_model)
 
+It also features an N-th farthest synthetic task from the paper (see below).
+
 # Requirements
 PyTorch 0.4.1 & Python 3.6
 
