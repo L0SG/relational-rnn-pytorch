@@ -90,11 +90,29 @@ Using a full softmax easily blows up the VRAM. Using `--adaptivesoftmax` is high
 
 I don't have such hardware and my resource is too limited to do the experiments. Benchmark result, or any other contributions are very welcome!
 
+# Nth Farthest Task
 
+The objective of the task is: Given k randomly labelled (from 1 to k) D-dimensional vectors, identify which is the Nth farthest vector from vector M. (The answer is an integer from 1 to k.)
 
+The specific task in the paper is: given 8 labelled 16-dimensional vectors, which is the Nth farthest vector from vector M? The vectors are labelled randomly so the model has to recognise that the Mth vector is the vector labelled as M as opposed to the vector in the Mth position in the input. 
 
+The input to the model comprises 8 40-dimensional vectors for each example. Each of these 40-dimensional vectors is structured like this:
 
+```
+[(vector 1) (label: which vector is it, from 1 to 8, one-hot encoded) (N, one-hot encoded) (M, one-hot encoded)] 
+```
 
+#### Example
 
+`python train_nth_farthest.py --cuda` for training and testing on the Nth Farthest Task with GPU(s).
 
+This uses the `RelationalMemory` class in `relational_rnn_general.py`, which is a version of `relational_rnn_models.py` without the language-modelling specific code.
+
+Please refer to`train_nth_farthest.py` for details on hyperparameter values. These are taken from Appendix A1 in the paper and from the Sonnet implementation when the hyperparameter values are not given in the paper.
+
+Note: new examples are generated per epoch as in the Sonnet implementation. This seems to be consistent with the paper, which does not specify the number of examples used.
+
+#### Experiment results
+
+The model has been trained with 2 NVIDIA K80 GPUs (AWS p2.xlarge instance) for 2.5 hours and has reached a test accuracy of 26.3%. This is significantly less than the accuracy reported in the paper (91% at the end of 50h of training), but it is likely because the model has not been trained for long enough.
 
