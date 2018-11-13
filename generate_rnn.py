@@ -1,6 +1,5 @@
 ###############################################################################
-# Language Modeling on Penn Tree Bank
-#
+
 # This file generates new sentences sampled from the language model
 #
 ###############################################################################
@@ -8,16 +7,16 @@
 import argparse
 
 import torch
-from torch.autograd import Variable
-
+import pickle
 import data
+import os
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 Language Model')
 
 # Model parameters.
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
                     help='location of the data corpus')
-parser.add_argument('--checkpoint', type=str, default='./model.pt',
+parser.add_argument('--checkpoint', type=str, default=None,
                     help='model checkpoint to use')
 parser.add_argument('--outf', type=str, default='generated.txt',
                     help='output file for generated text')
@@ -32,6 +31,9 @@ parser.add_argument('--temperature', type=float, default=1.,
 parser.add_argument('--log-interval', type=int, default=100,
                     help='reporting interval')
 args = parser.parse_args()
+
+if args.checkpoint is None:
+    raise ValueError("--checkpoint not provided. specify model_dump_(epoch).pt")
 
 # Set the random seed manually for reproducibility.
 torch.manual_seed(args.seed)
@@ -49,7 +51,22 @@ with open(args.checkpoint, 'rb') as f:
     model = torch.load(f).to(device)
 model.eval()
 
-corpus = data.Corpus(args.data)
+corpus_name = os.path.basename(os.path.normpath(args.data))
+corpus_filename = './data/corpus-' + str(corpus_name) + str('.pkl')
+if os.path.isfile(corpus_filename):
+    print("loading pre-built " + str(corpus_name) + " corpus file...")
+    loadfile = open(corpus_filename, 'rb')
+    corpus = pickle.load(loadfile)
+    loadfile.close()
+else:
+    print("building " + str(corpus_name) + " corpus...")
+    corpus = data.Corpus(args.data)
+    # save the corpus for later
+    savefile = open(corpus_filename, 'wb')
+    pickle.dump(corpus, savefile)
+    savefile.close()
+    print("corpus saved to pickle")
+
 ntokens = len(corpus.dictionary)
 hidden = model.init_hidden(1)
 input = torch.randint(ntokens, (1, 1), dtype=torch.long).to(device)

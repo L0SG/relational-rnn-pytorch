@@ -6,10 +6,9 @@ import os
 import torch
 import torch.nn as nn
 import torch.onnx
-import pickle
 import datetime
 import shutil
-
+import pickle
 import data
 import rnn_models
 
@@ -54,6 +53,8 @@ parser.add_argument('--save', type=str, default='model.pt',
                     help='path to save the final model')
 parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
+parser.add_argument('--resume', type=int, default=None,
+                    help='if specified with the 1-indexed global epoch, loads the checkpoint and resumes training')
 
 # parameters for adaptive softmax
 parser.add_argument('--adaptivesoftmax', action='store_true',
@@ -66,16 +67,17 @@ parser.add_argument('--cutoffs', nargs="*", type=int, default=[10000, 50000, 100
 # experiment name for this run
 parser.add_argument('--name', type=str, default=None,
                     help='name for this experiment. generates folder with the name if specified.')
+
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
 torch.manual_seed(args.seed)
+
 if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
 device = torch.device("cuda" if args.cuda else "cpu")
-
 ###############################################################################
 # Load data
 ###############################################################################
@@ -140,8 +142,8 @@ logger_test = open(os.path.join(os.getcwd(), folder_name, 'test_log.txt'), 'w+')
 # save args to logger
 logger_train.write(str(args) + '\n')
 
-# change saved model file location
-args.save = os.path.join(os.getcwd(), folder_name, str(args.save))
+# define saved model file location
+savepath = os.path.join(os.getcwd(), folder_name)
 
 ###############################################################################
 # Build the model
@@ -149,15 +151,14 @@ args.save = os.path.join(os.getcwd(), folder_name, str(args.save))
 
 ntokens = len(corpus.dictionary)
 print("vocabulary size (ntokens): " + str(ntokens))
-
-if not args.adaptivesoftmax:
-    criterion = nn.CrossEntropyLoss().to(device)
-else:
+if args.adaptivesoftmax:
     print("Adaptive Softmax is on: the performance depends on cutoff values. check if the cutoff is properly set")
     print("Cutoffs: " + str(args.cutoffs))
     if args.cutoffs[-1] > ntokens:
         raise ValueError("the last element of cutoff list must be lower than vocab size of the dataset")
     criterion_adaptive = nn.AdaptiveLogSoftmaxWithLoss(args.nhid, ntokens, cutoffs=args.cutoffs).to(device)
+else:
+    criterion = nn.CrossEntropyLoss()
 
 model = rnn_models.RNNModel(args.model, ntokens, args.emsize, args.nhid,
                             args.nlayers, args.dropout, args.tied,
@@ -172,6 +173,28 @@ if not args.cudnn:
 
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
+
+###############################################################################
+# Load the model checkpoint if specified and restore the global & best epoch
+###############################################################################
+if args.resume is not None:
+    print("--resume detected. loading checkpoint...")
+global_epoch = args.resume if args.resume is not None else 0
+best_epoch = args.resume if args.resume is not None else 0
+if args.resume is not None:
+    loadpath = os.path.join(os.getcwd(), "model_{}.pt".format(args.resume))
+    if not os.path.isfile(loadpath):
+        raise FileNotFoundError(
+            "model_{}.pt not found. place the model checkpoint file to the current working directory.".format(
+                args.resume))
+    checkpoint = torch.load(loadpath)
+    model.load_state_dict(checkpoint["state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    scheduler.load_state_dict(checkpoint["scheduler"])
+    global_epoch = checkpoint["global_epoch"]
+    best_epoch = checkpoint["best_epoch"]
+
+print("model built, total trainable params: " + str(total_params))
 
 
 ###############################################################################
@@ -195,6 +218,7 @@ def repackage_hidden(h):
 # done along the batch dimension (i.e. dimension 1), since that was handled
 # by the batchify function. The chunks are along dimension 0, corresponding
 # to the seq_len dimension in the LSTM.
+
 
 def get_batch(source, i):
     seq_len = min(args.bptt, len(source) - 1 - i)
@@ -255,10 +279,12 @@ def train():
 
         forward_elapsed = time.time() - forward_start_time
         forward_elapsed_time += forward_elapsed
+
         loss.backward()
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+
         optimizer.step()
 
         if batch % args.log_interval == 0 and batch > 0:
@@ -272,8 +298,7 @@ def train():
             print(printlog)
             logger_train.write(printlog + '\n')
             logger_train.flush()
-
-            total_loss = 0
+            total_loss = 0.
             # reset timer
             start_time = time.time()
             forward_start_time = time.time()
@@ -290,15 +315,19 @@ def export_onnx(path, batch_size, seq_len):
 
 
 # Loop over epochs.
-lr = args.lr
 best_val_loss = None
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
-    for epoch in range(1, args.epochs + 1):
+    print("training started...")
+    if global_epoch > args.epochs:
+        raise ValueError("global_epoch is higher than args.epochs when resuming training.")
+    for epoch in range(global_epoch + 1, args.epochs + 1):
+        global_epoch += 1
         epoch_start_time = time.time()
         train()
         val_loss = evaluate(val_data)
+
         print('-' * 89)
         testlog = '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f}'.format(epoch, (
                 time.time() - epoch_start_time), val_loss, math.exp(val_loss))
@@ -306,24 +335,39 @@ try:
         logger_test.write(testlog + '\n')
         logger_test.flush()
         print('-' * 89)
+
         scheduler.step(val_loss)
 
         # Save the model if the validation loss is the best we've seen so far.
+        # model_{} contains state_dict and other states, model_dump_{} contains all the dependencies for generate_rmc.py
         if not best_val_loss or val_loss < best_val_loss:
-            with open(args.save, 'wb') as f:
-                torch.save(model, f)
+            try:
+                os.remove(os.path.join(savepath, "model_{}.pt".format(best_epoch)))
+                os.remove(os.path.join(savepath, "model_dump_{}.pt").format(best_epoch))
+            except FileNotFoundError:
+                pass
+            best_epoch = global_epoch
+            torch.save(model, os.path.join(savepath, "model_dump_{}.pt".format(global_epoch)))
+            with open(os.path.join(savepath, "model_{}.pt".format(global_epoch)), 'wb') as f:
+                optimizer_state = optimizer.state_dict()
+                scheduler_state = scheduler.state_dict()
+                torch.save({"state_dict": model.state_dict(),
+                            "optimizer": optimizer_state,
+                            "scheduler": scheduler_state,
+                            "global_epoch": global_epoch,
+                            "best_epoch": best_epoch}, f)
             best_val_loss = val_loss
         else:
-            # Anneal the learning rate if no improvement has been seen in the validation dataset.
-            # lr /= 4.0
             pass
+
 except KeyboardInterrupt:
     print('-' * 89)
-    print('Exiting from training early')
+    print('Exiting from training early: loading checkpoint from the best epoch {}...'.format(best_epoch))
 
 # Load the best saved model.
-with open(args.save, 'rb') as f:
-    model = torch.load(f)
+with open(os.path.join(savepath, "model_{}.pt".format(best_epoch)), 'rb') as f:
+    checkpoint = torch.load(f)
+    model.load_state_dict(checkpoint["state_dict"])
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
     if args.cudnn:
@@ -331,6 +375,7 @@ with open(args.save, 'rb') as f:
 
 # Run on test data.
 test_loss = evaluate(test_data)
+
 print('=' * 89)
 testlog = '| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
     test_loss, math.exp(test_loss))

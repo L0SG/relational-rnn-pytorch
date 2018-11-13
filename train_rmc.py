@@ -74,10 +74,10 @@ parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
 parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                     help='report interval')
-parser.add_argument('--save', type=str, default='model.pt',
-                    help='path to save the final model')
 parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
+parser.add_argument('--resume', type=int, default=None,
+                    help='if specified with the 1-indexed global epoch, loads the checkpoint and resumes training')
 
 # experiment name for this run
 parser.add_argument('--name', type=str, default=None,
@@ -157,8 +157,8 @@ logger_test = open(os.path.join(os.getcwd(), folder_name, 'test_log.txt'), 'w+')
 # save args to logger
 logger_train.write(str(args) + '\n')
 
-# change saved model file location
-args.save = os.path.join(os.getcwd(), folder_name, str(args.save))
+# define saved model file location
+savepath = os.path.join(os.getcwd(), folder_name)
 
 ###############################################################################
 # Build the model
@@ -179,10 +179,30 @@ model = RelationalMemory(mem_slots=args.memslots, head_size=args.headsize, input
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 model = nn.DataParallel(model)
 
-print("model built, total trainable params: " + str(total_params))
-
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
+
+###############################################################################
+# Load the model checkpoint if specified and restore the global & best epoch
+###############################################################################
+if args.resume is not None:
+    print("--resume detected. loading checkpoint...")
+global_epoch = args.resume if args.resume is not None else 0
+best_epoch = args.resume if args.resume is not None else 0
+if args.resume is not None:
+    loadpath = os.path.join(os.getcwd(), "model_{}.pt".format(args.resume))
+    if not os.path.isfile(loadpath):
+        raise FileNotFoundError(
+            "model_{}.pt not found. place the model checkpoint file to the current working directory.".format(
+                args.resume))
+    checkpoint = torch.load(loadpath)
+    model.load_state_dict(checkpoint["state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    scheduler.load_state_dict(checkpoint["scheduler"])
+    global_epoch = checkpoint["global_epoch"]
+    best_epoch = checkpoint["best_epoch"]
+
+print("model built, total trainable params: " + str(total_params))
 
 
 ###############################################################################
@@ -295,16 +315,19 @@ def export_onnx(path, batch_size, seq_len):
 
 
 # Loop over epochs.
-lr = args.lr
 best_val_loss = None
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     print("training started...")
-    for epoch in range(1, args.epochs + 1):
+    if global_epoch > args.epochs:
+        raise ValueError("global_epoch is higher than args.epochs when resuming training.")
+    for epoch in range(global_epoch + 1, args.epochs + 1):
+        global_epoch += 1
         epoch_start_time = time.time()
         train()
         val_loss = evaluate(val_data)
+
         print('-' * 89)
         testlog = '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f}'.format(epoch, (
                 time.time() - epoch_start_time), val_loss, math.exp(val_loss))
@@ -314,24 +337,41 @@ try:
         print('-' * 89)
 
         scheduler.step(val_loss)
+
         # Save the model if the validation loss is the best we've seen so far.
+        # model_{} contains state_dict and other states, model_dump_{} contains all the dependencies for generate_rmc.py
         if not best_val_loss or val_loss < best_val_loss:
-            with open(args.save, 'wb') as f:
-                torch.save(model, f)
+            try:
+                os.remove(os.path.join(savepath, "model_{}.pt".format(best_epoch)))
+                os.remove(os.path.join(savepath, "model_dump_{}.pt").format(best_epoch))
+            except FileNotFoundError:
+                pass
+            best_epoch = global_epoch
+            torch.save(model, os.path.join(savepath, "model_dump_{}.pt".format(global_epoch)))
+            with open(os.path.join(savepath, "model_{}.pt".format(global_epoch)), 'wb') as f:
+                optimizer_state = optimizer.state_dict()
+                scheduler_state = scheduler.state_dict()
+                torch.save({"state_dict": model.state_dict(),
+                            "optimizer": optimizer_state,
+                            "scheduler": scheduler_state,
+                            "global_epoch": global_epoch,
+                            "best_epoch": best_epoch}, f)
             best_val_loss = val_loss
         else:
             pass
 
 except KeyboardInterrupt:
     print('-' * 89)
-    print('Exiting from training early')
+    print('Exiting from training early: loading checkpoint from the best epoch {}...'.format(best_epoch))
 
 # Load the best saved model.
-with open(args.save, 'rb') as f:
-    model = torch.load(f)
+with open(os.path.join(savepath, "model_{}.pt".format(best_epoch)), 'rb') as f:
+    checkpoint = torch.load(f)
+    model.load_state_dict(checkpoint["state_dict"])
 
 # Run on test data.
 test_loss = evaluate(test_data)
+
 print('=' * 89)
 testlog = '| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
     test_loss, math.exp(test_loss))

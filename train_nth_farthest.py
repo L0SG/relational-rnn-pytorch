@@ -36,8 +36,7 @@ device = torch.device("cuda" if parse_args.cuda else "cpu")
 
 # network params
 learning_rate = 1e-4
-num_epochs = 1000000
-num_epochs = 100
+num_epochs = 10000000
 dtype = torch.float
 mlp_size = 256
 

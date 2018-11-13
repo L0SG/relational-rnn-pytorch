@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 Language Model'
 # Model parameters.
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
                     help='location of the data corpus')
-parser.add_argument('--checkpoint', type=str, default='./model.pt',
+parser.add_argument('--checkpoint', type=str, default=None,
                     help='model checkpoint to use')
 parser.add_argument('--outf', type=str, default='generated.txt',
                     help='output file for generated text')
@@ -32,6 +32,9 @@ parser.add_argument('--log-interval', type=int, default=100,
                     help='reporting interval')
 args = parser.parse_args()
 
+if args.checkpoint is None:
+    raise ValueError("--checkpoint not provided. specify model_dump_(epoch).pt")
+
 # Set the random seed manually for reproducibility.
 torch.manual_seed(args.seed)
 
@@ -39,7 +42,7 @@ if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if args.cuda else "cpu")
 
 if args.temperature < 1e-3:
     parser.error("--temperature has to be greater or equal 1e-3")
