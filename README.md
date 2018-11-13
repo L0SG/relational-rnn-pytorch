@@ -116,7 +116,7 @@ Note: new examples are generated per epoch as in the Sonnet implementation. This
 
 #### Experiment results
 
-The model has been trained with a single TITAN Xp GPU for forever until it reaches 91% test accuracy. Below are the results with independent 3 runs:
+The model has been trained with a single TITAN Xp GPU for forever until it reaches 91% test accuracy. Below are the results with 3 independent runs:
 ![](./pics/nth_results.jpg)
 
 The model does break the 25% barrier if trained long enough, but the wall clock time is roughly over 2~3x longer than those reported in the paper.
