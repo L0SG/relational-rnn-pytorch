@@ -116,5 +116,11 @@ Note: new examples are generated per epoch as in the Sonnet implementation. This
 
 #### Experiment results
 
-The model has been trained with 2 NVIDIA K80 GPUs (AWS p2.xlarge instance) for 2.5 hours and has reached a test accuracy of 26.3%. This is significantly less than the accuracy reported in the paper (91% at the end of 50h of training), but it is likely because the model has not been trained for long enough.
+The model has been trained with a single TITAN Xp GPU for forever until it reaches 91% test accuracy. Below are the results with independent 3 runs:
+![](./pics/nth_results.jpg)
 
+The model does break the 25% barrier if trained long enough, but the wall clock time is roughly over 2~3x longer than those reported in the paper.
+
+#### TODO
+
+Experiment with different hyperparameters 
