@@ -19,7 +19,7 @@ benchmark codes are hard-forked from [official PyTorch word-language-model examp
 It also features an N-th farthest synthetic task from the paper (see below).
 
 # Requirements
-PyTorch 0.4.1 & Python 3.6
+PyTorch 0.4.1 or later (Tested on 1.0.0) & Python 3.6
 
 # Examples
 `python train_rmc.py --cuda ` for full training & test run of RMC with GPU.
