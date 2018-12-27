@@ -189,8 +189,6 @@ class RelationalMemory(nn.Module):
         q, k, v = torch.split(qkv_transpose, [self.key_size, self.key_size, self.value_size], -1)
 
         # scale q with d_k, the dimensionality of the key vectors
-        # TODO: sonnet use qkv_size, but isn't d_k the dim of key vector in the paper?
-        # q *= (self.qkv_size ** -0.5)
         q *= (self.key_size ** -0.5)
 
         # make it [B, H, N, N]
